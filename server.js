@@ -2,7 +2,7 @@ const WebSocket = require('ws');
 const fs = require('fs');
 const path = require('path');
 const Groq = require('groq-sdk');
-const { MsEdgeTTS, OUTPUT_FORMAT } = require('edge-tts');
+const { exec } = require('child_process'); // <--- Usaremos esto para llamar a Python
 const { v4: uuidv4 } = require('uuid');
 
 // Configuración
@@ -10,7 +10,7 @@ const port = process.env.PORT || 8080;
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const wss = new WebSocket.Server({ port });
 
-console.log(`🚀 Jarvis (Groq Edition) escuchando en puerto ${port}`);
+console.log(`🚀 Jarvis (Python Hybrid) escuchando en puerto ${port}`);
 
 wss.on('connection', (ws) => {
     console.log('⚡ Cliente conectado');
@@ -29,9 +29,9 @@ wss.on('connection', (ws) => {
             // --- FASE 1: OÍDO (Groq Whisper) ---
             const transcription = await groq.audio.transcriptions.create({
                 file: fs.createReadStream(inputPath),
-                model: "whisper-large-v3", // Modelo V3 (El mejor open source actual)
+                model: "whisper-large-v3",
                 response_format: "json",
-                language: "es", // Forzar español mejora la precisión
+                language: "es",
             });
             
             const userText = transcription.text;
@@ -39,7 +39,7 @@ wss.on('connection', (ws) => {
 
             if (!userText || userText.trim().length === 0) return;
 
-            // --- FASE 2: CEREBRO (Llama 3.1 en Groq) ---
+            // --- FASE 2: CEREBRO (Llama 3 en Groq) ---
             const completion = await groq.chat.completions.create({
                 messages: [
                     { 
@@ -48,33 +48,42 @@ wss.on('connection', (ws) => {
                     },
                     { role: "user", content: userText }
                 ],
-                model: "llama-3.3-70b-versatile", // Modelo muy inteligente y rápido
+                model: "llama-3.3-70b-versatile",
                 temperature: 0.6,
             });
 
             const jarvisReply = completion.choices[0].message.content;
             console.log(`🤖 Jarvis: ${jarvisReply}`);
 
-            // --- FASE 3: VOZ (Edge TTS) ---
-            // Voces recomendadas: 
-            // 'es-AR-TomasNeural' (Hombre Argentino, muy natural)
-            // 'es-MX-JorgeNeural' (Hombre Mexicano)
-            // 'es-ES-AlvaroNeural' (Hombre Español)
-            const tts = new MsEdgeTTS();
-            await tts.setMetadata("es-AR-TomasNeural", OUTPUT_FORMAT.AUDIO_24KHZ_48BIT_MONO_MP3);
-            await tts.toFile(outputPath, jarvisReply);
+            // --- FASE 3: VOZ (Python Bridge) ---
+            // Escapamos las comillas dobles para que no rompa el comando de terminal
+            const safeText = jarvisReply.replace(/"/g, '\\"');
+            
+            // Ejecutamos el comando edge-tts de Python directamente
+            const command = `edge-tts --text "${safeText}" --write-media "${outputPath}" --voice es-AR-TomasNeural`;
 
-            // --- FASE 4: ENVIAR RESPUESTA ---
-            const audioBuffer = fs.readFileSync(outputPath);
-            ws.send(audioBuffer);
-            console.log('📤 Audio enviado');
+            exec(command, (error, stdout, stderr) => {
+                if (error) {
+                    console.error(`❌ Error TTS: ${error.message}`);
+                    return;
+                }
 
-            // Limpieza de archivos
-            try { fs.unlinkSync(inputPath); fs.unlinkSync(outputPath); } catch(e){}
+                // --- FASE 4: ENVIAR RESPUESTA ---
+                try {
+                    const audioBuffer = fs.readFileSync(outputPath);
+                    ws.send(audioBuffer);
+                    console.log('📤 Audio enviado');
+
+                    // Limpieza
+                    fs.unlinkSync(inputPath);
+                    fs.unlinkSync(outputPath);
+                } catch (e) {
+                    console.error("Error enviando archivo:", e);
+                }
+            });
 
         } catch (error) {
-            console.error('❌ Error en el proceso:', error);
-            // Opcional: Enviar un audio de error pregrabado
+            console.error('❌ Error General:', error);
         }
     });
 });
