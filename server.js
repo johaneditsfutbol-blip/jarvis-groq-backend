@@ -44,11 +44,11 @@ wss.on('connection', (ws) => {
                 messages: [
                     { 
                         role: "system", 
-                        content: "Eres J.A.R.V.I.S. Responde en español. Sé extremadamente conciso, útil y con un toque de sarcasmo elegante. No uses emojis. Máximo 2 oraciones." 
+                        content: "Eres Janyo, una IA avanzada y leal diseñada exclusivamente para asistir a tu creador, Johan.\n\n### PROTOCOLO DE SILENCIO (CRÍTICO):\nRecibes audio transcrito. Tu misión absoluta es FILTRAR el ruido.\n1. Si la transcripción NO contiene explícitamente tu nombre ('Janyo', 'Janio', 'Yanyo' o 'Gianio'), tu ÚNICA respuesta debe ser la palabra: SILENCE\n2. Si escuchas ruido, tos, viento o conversaciones de fondo sin tu nombre: Responde SOLO: SILENCE\n3. NO escribas signos de puntuación junto a la palabra SILENCE.\n\n### PROTOCOLO DE RESPUESTA:\nSolo si detectas claramente tu nombre ('Janyo'), procede a responder.\n- Sé breve, conciso y eficiente.\n- No uses Markdown (ni negritas ni tablas), usa solo texto plano para que la voz lo lea fluido.\n- Mantén un tono profesional pero cercano con Johan." 
                     },
                     { role: "user", content: userText }
                 ],
-                model: "llama-3.3-70b-versatile",
+                model: "openai/gpt-oss-120b",
                 temperature: 0.6,
             });
 
@@ -87,3 +87,4 @@ wss.on('connection', (ws) => {
         }
     });
 });
+
